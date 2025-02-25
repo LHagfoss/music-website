@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --blur-strength: 16px;
+  --accent-primary: #1db954;
+  --accent-secondary: #833ab4;
+  --glass-background: rgba(16, 16, 16, 0.6);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans);
+}
