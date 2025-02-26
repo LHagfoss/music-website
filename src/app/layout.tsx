@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import MiniPlayer from "@/components/MiniPlayer";
 import { AudioProvider } from '@/contexts/AudioContext';
 import "./globals.css";
+import Footer from '@/components/Footer';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,13 +29,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}>
         <Providers>
           <AudioProvider>
             <Navbar />
-            {children}
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
             <MiniPlayer />
           </AudioProvider>
         </Providers>

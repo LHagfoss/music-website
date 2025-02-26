@@ -15,26 +15,25 @@ interface Song {
   };
 }
 
-interface AudioContextType {
+export interface AudioContextType {
   currentSong: Song | null;
   isPlaying: boolean;
+  progress: number;
+  volume: number;
+  playlist: Song[];
   duration: number;
   currentTime: number;
-  volume: number;
-  isMuted: boolean;
   isRepeat: boolean;
   isShuffle: boolean;
-  playlist: Song[];
-  setPlaylist: (songs: Song[]) => void;
   playSong: (song: Song) => void;
+  setPlaylist: (songs: Song[]) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
-  toggleMute: () => void;
-  toggleRepeat: () => void;
-  toggleShuffle: () => void;
   playNext: () => void;
   playPrevious: () => void;
+  toggleRepeat: () => void;
+  toggleShuffle: () => void;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -42,16 +41,95 @@ const AudioContext = createContext<AudioContextType | null>(null);
 export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [playlist, setPlaylist] = useState<Song[]>([]);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(0.15);
-  const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
-  const [playlist, setPlaylist] = useState<Song[]>([]);
-  
+  const [shuffledPlaylist, setShuffledPlaylist] = useState<Song[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  useEffect(() => {
+    if (isShuffle) {
+      const shuffled = [...playlist].sort(() => Math.random() - 0.5);
+      setShuffledPlaylist(shuffled);
+    } else {
+      setShuffledPlaylist([]);
+    }
+  }, [isShuffle, playlist]);
+
+  const toggleRepeat = () => setIsRepeat(!isRepeat);
+  const toggleShuffle = () => setIsShuffle(!isShuffle);
+
+  const playNext = () => {
+    if (!currentSong || playlist.length === 0) return;
+    const currentPlaylist = isShuffle ? shuffledPlaylist : playlist;
+    const currentIndex = currentPlaylist.findIndex(song => song.id === currentSong.id);
+    const nextSong = currentPlaylist[(currentIndex + 1) % currentPlaylist.length];
+    if (nextSong) playSong(nextSong);
+  };
+
+  const playPrevious = () => {
+    if (!currentSong || playlist.length === 0) return;
+    const currentPlaylist = isShuffle ? shuffledPlaylist : playlist;
+    const currentIndex = currentPlaylist.findIndex(song => song.id === currentSong.id);
+    const previousSong = currentPlaylist[(currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length];
+    if (previousSong) playSong(previousSong);
+  };
+
+  // Update volume effect
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  if (audioRef.current) {
+    if (isPlaying) {
+      audioRef.current.play().catch(console.error);
+    } else {
+      audioRef.current.pause();
+    }
+  }
+
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const seek = (time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  if (currentSong && isPlaying) {
+    fetch('/api/discord/presence', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        songTitle: currentSong.title,
+        artist: currentSong.artist,
+      }),
+    }).catch(console.error);
+  }
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
@@ -83,112 +161,51 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [isRepeat]);
 
   const playSong = (song: Song) => {
+    setCurrentSong(song);
+    setIsPlaying(true);
+  };
+
+  // Add event listener for song end
+  useEffect(() => {
     if (audioRef.current) {
-      setCurrentSong(song);
-      audioRef.current.src = song.audioUrl;
-      audioRef.current.play();
-      setIsPlaying(true);
+      audioRef.current.onended = () => {
+        playNext();
+      };
     }
-  };
+  }, [currentSong, playlist]);
 
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const seek = (time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
-    }
-  };
-
-  const handleVolumeChange = (newVolume: number) => {
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-      setVolume(newVolume);
-      setIsMuted(newVolume === 0);
-    }
-  };
-
-  const toggleMute = () => {
-    if (audioRef.current) {
-      if (isMuted) {
-        audioRef.current.volume = volume;
-        setIsMuted(false);
-      } else {
-        audioRef.current.volume = 0;
-        setIsMuted(true);
-      }
-    }
-  };
-
-  const toggleRepeat = () => setIsRepeat(!isRepeat);
-  const toggleShuffle = () => setIsShuffle(!isShuffle);
-
-  const getNextSongIndex = () => {
-    if (!currentSong || playlist.length === 0) return -1;
-    const currentIndex = playlist.findIndex(song => song.id === currentSong.id);
-    if (isShuffle) {
-      return Math.floor(Math.random() * playlist.length);
-    }
-    return (currentIndex + 1) % playlist.length;
-  };
-
-  const getPreviousSongIndex = () => {
-    if (!currentSong || playlist.length === 0) return -1;
-    const currentIndex = playlist.findIndex(song => song.id === currentSong.id);
-    if (isShuffle) {
-      return Math.floor(Math.random() * playlist.length);
-    }
-    return (currentIndex - 1 + playlist.length) % playlist.length;
-  };
-
-  const playNext = () => {
-    const nextIndex = getNextSongIndex();
-    if (nextIndex !== -1) {
-      playSong(playlist[nextIndex]);
-    }
-  };
-
-  const playPrevious = () => {
-    const previousIndex = getPreviousSongIndex();
-    if (previousIndex !== -1) {
-      playSong(playlist[previousIndex]);
-    }
+  const value = {
+    currentSong,
+    isPlaying,
+    progress,
+    volume,
+    playlist,
+    duration,
+    currentTime,
+    isRepeat,
+    isShuffle,
+    playSong,
+    setPlaylist,
+    togglePlay,
+    seek,
+    setVolume,
+    playNext,
+    playPrevious,
+    toggleRepeat,
+    toggleShuffle,
   };
 
   return (
-    <AudioContext.Provider
-      value={{
-        currentSong,
-        isPlaying,
-        duration,
-        currentTime,
-        volume,
-        isMuted,
-        isRepeat,
-        isShuffle,
-        playlist,
-        setPlaylist,
-        playSong,
-        togglePlay,
-        seek,
-        setVolume: handleVolumeChange,
-        toggleMute,
-        toggleRepeat,
-        toggleShuffle,
-        playNext,
-        playPrevious,
-      }}
-    >
+    <AudioContext.Provider value={value}>
       {children}
+      {currentSong && (
+        <audio
+          ref={audioRef}
+          src={currentSong.audioUrl}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+        />
+      )}
     </AudioContext.Provider>
   );
 }

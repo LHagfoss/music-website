@@ -33,6 +33,47 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Playlist {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songs     Song[]
+
+  @@index([userId])
+}
+
+model Song {
+  id        String     @id @default(cuid())
+  title     String
+  artist    String
+  album     String?
+  coverUrl  String?
+  audioUrl  String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playlists Playlist[]
+  favorites Favorite[]
+
+  @@index([userId])
+}
+
+model Favorite {
+  userId    String
+  songId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@id([userId, songId])
+  @@index([userId])
+  @@index([songId])
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -42,19 +83,21 @@ model User {
   accounts      Account[]
   sessions      Session[]
   songs         Song[]
+  favorites     Favorite[]
+  playlists     Playlist[]
+  followers     Follow[]    @relation("Following")
+  following     Follow[]    @relation("Followers")
 }
 
-model Song {
-  id        String   @id @default(cuid())
-  title     String
-  artist    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  album     String?
-  audioUrl  String
-  coverUrl  String?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
 }
 
 model VerificationToken {

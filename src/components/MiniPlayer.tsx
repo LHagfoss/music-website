@@ -2,186 +2,173 @@
 
 import React, { useEffect } from 'react';
 import { useAudio } from '@/contexts/AudioContext';
-import { FaPlay, FaPause, FaStepForward, FaStepBackward, FaRandom, FaRedo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaPlay, FaPause, FaStepForward, FaStepBackward, FaRandom, FaRedo } from 'react-icons/fa';
+import Image from 'next/image';
+import { formatTime } from '@/lib/utils';
+import VolumeControl from './VolumeControl';
 
 export default function MiniPlayer() {
   const {
     currentSong,
     isPlaying,
+    progress,
+    volume,
     duration,
     currentTime,
-    volume,
-    isMuted,
     isRepeat,
     isShuffle,
     togglePlay,
+    seek,
+    setVolume,
+    playNext,
+    playPrevious,
     toggleRepeat,
     toggleShuffle,
-    toggleMute,
-    setVolume,
-    seek,
-    playNext,
-    playPrevious
   } = useAudio();
 
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      
+      switch(e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          seek(Math.max(0, currentTime - 5));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          seek(Math.min(duration, currentTime + 5));
+          break;
+        case 'MediaPlayPause':
+          togglePlay();
+          break;
+        case 'MediaTrackNext':
+          playNext();
+          break;
+        case 'MediaTrackPrevious':
+          playPrevious();
+          break;
+      }
+    };
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [togglePlay, seek, currentTime, duration, playNext, playPrevious]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentSong) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album || undefined,
+        artwork: currentSong.coverUrl ? [
+          { src: currentSong.coverUrl, sizes: '512x512', type: 'image/jpeg' }
+        ] : undefined
+      });
+
+      navigator.mediaSession.setActionHandler('play', togglePlay);
+      navigator.mediaSession.setActionHandler('pause', togglePlay);
+      navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
+      navigator.mediaSession.setActionHandler('nexttrack', playNext);
+    }
+  }, [currentSong, togglePlay, playNext, playPrevious]);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
     seek(time);
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    setVolume(value);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ' ' && e.target === document.body) {
-        e.preventDefault();
-        togglePlay();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay]);
+  if (!currentSong) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-zinc-900/60 backdrop-blur-lg">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-zinc-800 rounded-md overflow-hidden">
-            {currentSong?.coverUrl && (
-              <img
+    <div className="fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800/50 p-4 z-50">
+      <div className="max-w-7xl mx-auto flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="relative w-14 h-14 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0">
+            {currentSong.coverUrl && (
+              <Image
                 src={currentSong.coverUrl}
                 alt={currentSong.title}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
             )}
           </div>
-          <div>
-            <div className="font-medium">{currentSong?.title || 'No song playing'}</div>
-            <div className="text-sm text-zinc-400">{currentSong?.artist || 'Select a song'}</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium truncate">{currentSong.title}</h3>
+            <p className="text-sm text-zinc-400 truncate">{currentSong.artist}</p>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-4">
-            <div className="group relative">
-              <button
-                onClick={toggleShuffle}
-                className={`p-2 transition-colors ${isShuffle ? 'text-purple-500' : 'hover:text-purple-500'}`}
-              >
-                <FaRandom size={16} />
-              </button>
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                Toggle Shuffle
-              </div>
-            </div>
-            <div className="group relative">
-              <button
-                onClick={playPrevious}
-                className="p-2 hover:text-purple-500 transition-colors"
-                disabled={!currentSong}
-              >
-                <FaStepBackward size={20} />
-              </button>
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                Previous Song
-              </div>
-            </div>
-            <div className="group relative">
-              <button
-                onClick={togglePlay}
-                className="p-2 hover:text-purple-500 transition-colors"
-              >
-                {isPlaying ? <FaPause size={24} /> : <FaPlay size={24} />}
-              </button>
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                {isPlaying ? 'Pause' : 'Play'}
-              </div>
-            </div>
-            <div className="group relative">
-              <button
-                onClick={playNext}
-                className="p-2 hover:text-purple-500 transition-colors"
-                disabled={!currentSong}
-              >
-                <FaStepForward size={20} />
-              </button>
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                Next Song
-              </div>
-            </div>
-            <div className="group relative">
-              <button
-                onClick={toggleRepeat}
-                className={`p-2 transition-colors ${isRepeat ? 'text-purple-500' : 'hover:text-purple-500'}`}
-              >
-                <FaRedo size={16} />
-              </button>
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                Toggle Repeat
-              </div>
-            </div>
-          </div>
-          <div className="w-96 flex items-center gap-2 text-sm text-zinc-400">
-            <span>{formatTime(currentTime)}</span>
-            <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden relative">
-              <input
-                type="range"
-                min="0"
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleTimeChange}
-                className="w-full h-full appearance-none bg-transparent cursor-pointer absolute top-0 left-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10"
-              />
-              <div
-                className="absolute top-0 left-0 h-full bg-purple-500 pointer-events-none"
-                style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
-              />
-            </div>
-            <span>{formatTime(duration || 0)}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="group relative">
+        <div className="flex-1 max-w-2xl">
+          <div className="flex items-center justify-center gap-4">
             <button
-              onClick={toggleMute}
-              className="p-2 hover:text-purple-500 transition-colors"
+              onClick={toggleShuffle}
+              className={`p-2 rounded-full transition-colors tooltip-trigger ${
+                isShuffle ? 'text-purple-500' : 'text-zinc-400 hover:text-white'
+              }`}
             >
-              {isMuted ? <FaVolumeMute size={20} /> : <FaVolumeUp size={20} />}
+              <FaRandom />
+              <span className="tooltip">Shuffle</span>
             </button>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-              {isMuted ? 'Unmute' : 'Mute'}
-            </div>
+            <button
+              onClick={playPrevious}
+              className="p-2 rounded-full text-zinc-400 hover:text-white transition-colors tooltip-trigger"
+            >
+              <FaStepBackward />
+              <span className="tooltip">Previous</span>
+            </button>
+            <button
+              onClick={togglePlay}
+              className="p-4 rounded-full bg-purple-500 hover:bg-purple-600 transition-colors tooltip-trigger"
+            >
+              {isPlaying ? <FaPause /> : <FaPlay />}
+              <span className="tooltip">{isPlaying ? 'Pause' : 'Play'}</span>
+            </button>
+            <button
+              onClick={playNext}
+              className="p-2 rounded-full text-zinc-400 hover:text-white transition-colors tooltip-trigger"
+            >
+              <FaStepForward />
+              <span className="tooltip">Next</span>
+            </button>
+            <button
+              onClick={toggleRepeat}
+              className={`p-2 rounded-full transition-colors tooltip-trigger ${
+                isRepeat ? 'text-purple-500' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <FaRedo />
+              <span className="tooltip">Repeat</span>
+            </button>
           </div>
-          <div className="relative w-24">
+
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs text-zinc-400 w-10 text-right">
+              {formatTime(currentTime)}
+            </span>
             <input
               type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
-              className="w-full h-1 appearance-none bg-zinc-800 rounded-full overflow-hidden absolute [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 hover:cursor-pointer"
+              min={0}
+              max={duration}
+              value={currentTime}
+              onChange={handleSeek}
+              className="flex-1 accent-purple-500"
             />
-            <div
-              className="absolute top-0 left-0 h-1 bg-purple-500 rounded-full pointer-events-none"
-              style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
-            />
+            <span className="text-xs text-zinc-400 w-10">
+              {formatTime(duration)}
+            </span>
           </div>
         </div>
+
+        <div className="flex-1 flex justify-end">
+          <VolumeControl volume={volume} onChange={setVolume} />
+        </div>
       </div>
-      <div className="absolute w-32 h-32 -bottom-16 -left-16 rounded-full bg-gradient-to-r from-purple-500/30 to-purple-500/0 blur-2xl" />
-      <div className="absolute w-32 h-32 -bottom-16 -right-16 rounded-full bg-gradient-to-l from-purple-500/30 to-purple-500/0 blur-2xl" />
     </div>
   );
 }
