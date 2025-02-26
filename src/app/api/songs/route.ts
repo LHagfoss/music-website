@@ -5,7 +5,6 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    // Fetch songs from database with user information
     const songs = await prisma.song.findMany({
       orderBy: {
         createdAt: 'desc'
@@ -21,7 +20,6 @@ export async function GET() {
       }
     });
 
-    // Transform the data to include uploader information
     const formattedSongs = songs.map(song => ({
       ...song,
       uploader: song.user ? {
@@ -29,10 +27,9 @@ export async function GET() {
         name: song.user.name || 'Anonymous',
         image: song.user.image
       } : null,
-      user: undefined // Remove the user object from the response
+      user: undefined 
     }));
 
-    // Set cache control headers for SWR
     return new NextResponse(JSON.stringify(formattedSongs), {
       headers: {
         'Content-Type': 'application/json',

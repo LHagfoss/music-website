@@ -11,7 +11,6 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Invalid song ID' }, { status: 400 });
     }
 
-    // Find the song first to get its file path
     const song = await prisma.song.findUnique({
       where: { id: params.id },
       select: { audioUrl: true, coverUrl: true }
